@@ -4,7 +4,7 @@ from eve_escalation_watcher import TEXT, Universe, data_dir, default_sound_file,
 
 class WatcherTests(unittest.TestCase):
     def test_all_interface_translation_keys_exist_in_both_languages(self):
-        keys = {"settings", "language", "home", "radius", "sound", "bridges", "update", "folder", "start", "stop", "sound_file", "choose_sound", "test", "volume", "chat_wait", "clear_chat", "matching", "clear_list", "time", "seller", "system", "jumps", "message", "catalog_load", "catalog_ready", "downloading", "download_error", "choose_folder", "choose_alert", "update_first", "folder_required", "watching", "stopped", "no_file", "switched", "found", "read_error", "bridges_title", "bridges_help", "unknown", "bridges_saved", "save_replace", "cancel", "unknown_system"}
+        keys = {"settings", "language", "theme", "light", "dark", "home", "radius", "sound", "bridges", "update", "folder", "start", "stop", "sound_file", "choose_sound", "test", "volume", "chat_wait", "clear_chat", "matching", "clear_list", "time", "seller", "system", "jumps", "message", "catalog_load", "catalog_ready", "downloading", "download_error", "choose_folder", "choose_alert", "update_first", "folder_required", "watching", "stopped", "no_file", "switched", "found", "read_error", "bridges_title", "bridges_help", "unknown", "bridges_saved", "save_replace", "cancel", "unknown_system"}
         for language in ("uk", "en"):
             self.assertTrue(keys.issubset(TEXT[language]), language)
     def test_bundled_alert_is_used_when_no_sound_is_saved(self):
@@ -20,11 +20,11 @@ class WatcherTests(unittest.TestCase):
         self.assertEqual([offer[2] for offer in offers], ["LK1K-5", "M9-FIB"])
     def test_purchase_marker_after_system_is_excluded(self):
         near = {"LK1K-5": 3, "M9-FIB": 5}
-        self.assertEqual(parse("[20:27:27] Buyer > LK1K-5 x 150m", near), [])
-        self.assertEqual(parse("[20:27:27] Buyer > M9-FIB х 150m", near), [])
+        for text in ("LK1K-5 x 150m", "M9-FIB х 150m", "LK1K-5 x", "LK1K-5 X.", "M9-FIB Х,"):
+            self.assertEqual(parse(f"[20:27:27] Buyer > {text}", near), [])
     def test_only_exact_purchase_marker_is_excluded(self):
         near = {"LK1K-5": 3}
-        for text in ("LK1K-5 x150m", "LK1K-5  x 150m", "LK1K-5 X 150m", "LK1K-5 sale x 150m"):
+        for text in ("LK1K-5 x150m", "LK1K-5  x 150m", "LK1K-5 sale x 150m", "LK1K-5 x. 150m"):
             self.assertEqual(len(parse(f"[20:27:27] Seller > {text}", near)), 1)
     def test_chat_line_is_available_even_without_system(self):
         self.assertEqual(parse_chat_line("[ 2026.10.20 19:14:33 ] A > hello"), ("2026.10.20 19:14:33", "A", "hello"))
