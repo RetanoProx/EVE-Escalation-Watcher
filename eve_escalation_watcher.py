@@ -13,8 +13,8 @@ TOKEN=re.compile(r"(?<![A-Z0-9-])([A-Z0-9]{1,6}-[A-Z0-9]{1,6})(?![A-Z0-9-])",re.
 CHAT_FILE=re.compile(r"^Imperium Expeditions_(?P<date>\d{8})_(?P<time>\d{6})_(?P<id>\d+)\.txt$",re.IGNORECASE)
 BRIDGE=re.compile(r"^\s*([A-Z0-9-]{1,20})\s*->\s*([A-Z0-9-]{1,20})\s*$",re.IGNORECASE)
 BUY_MARKER=re.compile(r" [xх](?: |[.,]?$)",re.IGNORECASE)
-# Messages whose complete text is known chat noise and must not create alerts.
-IGNORED_MESSAGE_TEXTS={"For example"}
+# Messages containing these markers are known chat noise and must not create alerts.
+IGNORED_MESSAGE_MARKERS=("for example",)
 TEXT={
  "uk":{"settings":"Налаштування","language":"Мова:","theme":"Тема:","light":"Світла","dark":"Темна","home":"Домашня система:","radius":"Радіус:","sound":"Звук","bridges":"Джамп-бриджі…","update":"Оновити каталог EVE","folder":"Папка логів…","start":"Запустити","stop":"Зупинити","sound_file":"Звук (.wav/.mp3):","choose_sound":"Вибрати звук…","test":"Перевірити","volume":"Гучність:","chat_wait":"Потік чату — очікування запуску","clear_chat":"Очистити чат","matching":"Відповідні системи","clear_list":"Очистити список","time":"Час","seller":"Продавець","system":"Система","jumps":"Стрибків","message":"Повідомлення","catalog_load":"Завантажте каталог систем EVE.","catalog_ready":"Каталог готовий: {count} систем. Вкажіть дім і папку логів.","downloading":"Завантаження каталогу EVE…","download_error":"Не вдалося оновити каталог: {error}","choose_folder":"Виберіть папку Chatlogs","choose_alert":"Виберіть звук сповіщення","warning":"Попередження","error":"Помилка","update_first":"Спочатку натисніть «Оновити каталог EVE».","folder_required":"Виберіть наявну папку Chatlogs.","watching":"Шукаю Imperium Expeditions у папці. Радіус: {radius} стрибків.","stopped":"Відстеження зупинено.","no_file":"Не знайдено файл Imperium Expeditions_*.txt у вибраній папці.","switched":"Перемкнено на новий лог: {path}","found":"Знайдено близьку систему: {system}, {jumps} стрибк.","read_error":"Помилка читання папки логів: {error}","bridges_title":"Джамп-бриджі","bridges_help":"Вставте зв’язки по одній на рядок: SYSTEM-A -> SYSTEM-B\nЗбереження замінює попередній список. Кожен зв’язок двосторонній та дорівнює 1 стрибку.","unknown":"Невідомі системи:\n","bridges_saved":"Джамп-бриджі збережено: {count} унікальних зв’язків.","save_replace":"Зберегти й замінити","cancel":"Скасувати","unknown_system":"Систему не знайдено в каталозі EVE."},
  "en":{"settings":"Settings","language":"Language:","theme":"Theme:","light":"Light","dark":"Dark","home":"Home system:","radius":"Radius:","sound":"Sound","bridges":"Jump bridges…","update":"Update EVE catalog","folder":"Log folder…","start":"Start","stop":"Stop","sound_file":"Sound (.wav/.mp3):","choose_sound":"Choose sound…","test":"Test","volume":"Volume:","chat_wait":"Chat stream — waiting to start","clear_chat":"Clear chat","matching":"Matching systems","clear_list":"Clear list","time":"Time","seller":"Seller","system":"System","jumps":"Jumps","message":"Message","catalog_load":"Load the EVE system catalog.","catalog_ready":"Catalog ready: {count} systems. Specify home and log folder.","downloading":"Downloading EVE catalog…","download_error":"Could not update catalog: {error}","choose_folder":"Choose the Chatlogs folder","choose_alert":"Choose alert sound","warning":"Warning","error":"Error","update_first":"First click “Update EVE catalog”.","folder_required":"Choose an existing Chatlogs folder.","watching":"Looking for Imperium Expeditions in the folder. Radius: {radius} jumps.","stopped":"Monitoring stopped.","no_file":"No Imperium Expeditions_*.txt file found in the selected folder.","switched":"Switched to new log: {path}","found":"Nearby system found: {system}, {jumps} jumps.","read_error":"Error reading log folder: {error}","bridges_title":"Jump bridges","bridges_help":"Paste one connection per line: SYSTEM-A -> SYSTEM-B\nSaving replaces the previous list. Each connection is bidirectional and counts as 1 jump.","unknown":"Unknown systems:\n","bridges_saved":"Jump bridges saved: {count} unique connections.","save_replace":"Save and replace","cancel":"Cancel","unknown_system":"System was not found in the EVE catalog."}
@@ -70,7 +70,7 @@ def parse(line,nearby):
  item=parse_chat_line(line)
  if not item:return []
  stamp,author,text=item
- if text in IGNORED_MESSAGE_TEXTS:return []
+ if any(marker in text.casefold() for marker in IGNORED_MESSAGE_MARKERS):return []
  offers=[];seen=set()
  # A purchase marker is valid only immediately after this exact system token:
  # ASCII space, x/х (any case), then a space, end, period, or comma.
@@ -195,7 +195,7 @@ class App(tk.Tk):
   if not Path(s.folder.get()).is_dir():return messagebox.showwarning(APP,s.t("folder_required"))
   try:s.near=s.u.nearby(s.home.get(),s.radius.get(),s.bridges)
   except ValueError:return messagebox.showwarning(APP,s.t("unknown_system"))
-  s.save_settings();s.run=True;s.toggle.config(text=s.t("stop"));s.status.set(s.t("watching",radius=s.radius.get()));threading.Thread(target=s.watch,daemon=True).start()
+  s.save_settings();s.skip_existing=True;s.run=True;s.toggle.config(text=s.t("stop"));s.status.set(s.t("watching",radius=s.radius.get()));threading.Thread(target=s.watch,daemon=True).start()
  def stop(s):s.run=False;s.toggle.config(text=s.t("start"));s.status.set(s.t("stopped"))
  def watch(s):
   while s.run:
@@ -204,7 +204,7 @@ class App(tk.Tk):
     if not p:
      s.events.put(("state",s.t("no_file")));time.sleep(1);continue
     if p!=s.active:
-     s.active=p;s.pos=0;s.events.put(("file",str(p.resolve())))
+     s.active=p;s.pos=p.stat().st_size if s.skip_existing else 0;s.skip_existing=False;s.events.put(("file",str(p.resolve())))
     size=p.stat().st_size
     if size<s.pos:s.pos=0
     if size>s.pos:
