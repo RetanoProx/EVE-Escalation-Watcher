@@ -14,6 +14,8 @@ class WatcherTests(unittest.TestCase):
         near = {"LK1K-5": 3, "M9-FIB": 5}
         line = "[20:27:27] Alcatraz202 > LK1K-5 angel 10 150m 22h"
         self.assertEqual(parse(line, near), [("20:27:27", "Alcatraz202", "LK1K-5", 3, "LK1K-5 angel 10 150m 22h")])
+    def test_exact_for_example_message_is_ignored(self):
+        self.assertEqual(parse("[20:27:27] Seller > For example", {"FOR-EXAMPLE": 3}), [])
     def test_all_nearby_systems_in_one_message_alert(self):
         near = {"LK1K-5": 3, "M9-FIB": 5}
         offers = parse("[20:27:27] Seller > LK1K-5 and M9-FIB escalations", near)

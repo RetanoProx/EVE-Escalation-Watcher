@@ -13,6 +13,8 @@ TOKEN=re.compile(r"(?<![A-Z0-9-])([A-Z0-9]{1,6}-[A-Z0-9]{1,6})(?![A-Z0-9-])",re.
 CHAT_FILE=re.compile(r"^Imperium Expeditions_(?P<date>\d{8})_(?P<time>\d{6})_(?P<id>\d+)\.txt$",re.IGNORECASE)
 BRIDGE=re.compile(r"^\s*([A-Z0-9-]{1,20})\s*->\s*([A-Z0-9-]{1,20})\s*$",re.IGNORECASE)
 BUY_MARKER=re.compile(r" [xх](?: |[.,]?$)",re.IGNORECASE)
+# Messages whose complete text is known chat noise and must not create alerts.
+IGNORED_MESSAGE_TEXTS={"For example"}
 TEXT={
  "uk":{"settings":"Налаштування","language":"Мова:","theme":"Тема:","light":"Світла","dark":"Темна","home":"Домашня система:","radius":"Радіус:","sound":"Звук","bridges":"Джамп-бриджі…","update":"Оновити каталог EVE","folder":"Папка логів…","start":"Запустити","stop":"Зупинити","sound_file":"Звук (.wav/.mp3):","choose_sound":"Вибрати звук…","test":"Перевірити","volume":"Гучність:","chat_wait":"Потік чату — очікування запуску","clear_chat":"Очистити чат","matching":"Відповідні системи","clear_list":"Очистити список","time":"Час","seller":"Продавець","system":"Система","jumps":"Стрибків","message":"Повідомлення","catalog_load":"Завантажте каталог систем EVE.","catalog_ready":"Каталог готовий: {count} систем. Вкажіть дім і папку логів.","downloading":"Завантаження каталогу EVE…","download_error":"Не вдалося оновити каталог: {error}","choose_folder":"Виберіть папку Chatlogs","choose_alert":"Виберіть звук сповіщення","warning":"Попередження","error":"Помилка","update_first":"Спочатку натисніть «Оновити каталог EVE».","folder_required":"Виберіть наявну папку Chatlogs.","watching":"Шукаю Imperium Expeditions у папці. Радіус: {radius} стрибків.","stopped":"Відстеження зупинено.","no_file":"Не знайдено файл Imperium Expeditions_*.txt у вибраній папці.","switched":"Перемкнено на новий лог: {path}","found":"Знайдено близьку систему: {system}, {jumps} стрибк.","read_error":"Помилка читання папки логів: {error}","bridges_title":"Джамп-бриджі","bridges_help":"Вставте зв’язки по одній на рядок: SYSTEM-A -> SYSTEM-B\nЗбереження замінює попередній список. Кожен зв’язок двосторонній та дорівнює 1 стрибку.","unknown":"Невідомі системи:\n","bridges_saved":"Джамп-бриджі збережено: {count} унікальних зв’язків.","save_replace":"Зберегти й замінити","cancel":"Скасувати","unknown_system":"Систему не знайдено в каталозі EVE."},
  "en":{"settings":"Settings","language":"Language:","theme":"Theme:","light":"Light","dark":"Dark","home":"Home system:","radius":"Radius:","sound":"Sound","bridges":"Jump bridges…","update":"Update EVE catalog","folder":"Log folder…","start":"Start","stop":"Stop","sound_file":"Sound (.wav/.mp3):","choose_sound":"Choose sound…","test":"Test","volume":"Volume:","chat_wait":"Chat stream — waiting to start","clear_chat":"Clear chat","matching":"Matching systems","clear_list":"Clear list","time":"Time","seller":"Seller","system":"System","jumps":"Jumps","message":"Message","catalog_load":"Load the EVE system catalog.","catalog_ready":"Catalog ready: {count} systems. Specify home and log folder.","downloading":"Downloading EVE catalog…","download_error":"Could not update catalog: {error}","choose_folder":"Choose the Chatlogs folder","choose_alert":"Choose alert sound","warning":"Warning","error":"Error","update_first":"First click “Update EVE catalog”.","folder_required":"Choose an existing Chatlogs folder.","watching":"Looking for Imperium Expeditions in the folder. Radius: {radius} jumps.","stopped":"Monitoring stopped.","no_file":"No Imperium Expeditions_*.txt file found in the selected folder.","switched":"Switched to new log: {path}","found":"Nearby system found: {system}, {jumps} jumps.","read_error":"Error reading log folder: {error}","bridges_title":"Jump bridges","bridges_help":"Paste one connection per line: SYSTEM-A -> SYSTEM-B\nSaving replaces the previous list. Each connection is bidirectional and counts as 1 jump.","unknown":"Unknown systems:\n","bridges_saved":"Jump bridges saved: {count} unique connections.","save_replace":"Save and replace","cancel":"Cancel","unknown_system":"System was not found in the EVE catalog."}
@@ -67,7 +69,9 @@ def parse_chat_line(line):
 def parse(line,nearby):
  item=parse_chat_line(line)
  if not item:return []
- stamp,author,text=item;offers=[];seen=set()
+ stamp,author,text=item
+ if text in IGNORED_MESSAGE_TEXTS:return []
+ offers=[];seen=set()
  # A purchase marker is valid only immediately after this exact system token:
  # ASCII space, x/х (any case), then a space, end, period, or comma.
  for match in TOKEN.finditer(text):
@@ -99,9 +103,15 @@ class App(tk.Tk):
   s.after(200,s.poll)
  def t(s,key,**values):return TEXT[s.lang.get()][key].format(**values)
  def apply_theme(s):
-  dark=s.theme.get()=="dark";bg="#202124" if dark else "#f0f0f0";fg="#e8eaed" if dark else "#202124";field="#303134" if dark else "#ffffff";muted="#9aa0a6" if dark else "#555555";style=ttk.Style(s);style.theme_use("clam")
+  dark=s.theme.get()=="dark"
+  bg,fg,field,muted,raised,active=("#1b222c","#e7edf5","#283442","#aebdcb","#344556","#41576c") if dark else ("#f0f0f0","#202124","#ffffff","#555555","#e0e0e0","#d4d4d4")
+  style=ttk.Style(s);style.theme_use("clam")
   s.configure(background=bg);s.option_add("*Toplevel.background",bg);s.option_add("*Text.background",field);s.option_add("*Text.foreground",fg);s.option_add("*Text.insertBackground",fg)
-  style.configure(".",background=bg,foreground=fg);style.configure("TFrame",background=bg);style.configure("TLabelframe",background=bg,foreground=fg);style.configure("TLabelframe.Label",background=bg,foreground=fg);style.configure("TLabel",background=bg,foreground=fg);style.configure("TButton",padding=5);style.configure("TEntry",fieldbackground=field,foreground=fg);style.configure("TCombobox",fieldbackground=field,background=field,foreground=fg);style.map("TCombobox",fieldbackground=[("readonly",field)],foreground=[("readonly",fg)]);style.configure("Treeview",background=field,fieldbackground=field,foreground=fg);style.configure("Treeview.Heading",background="#3c4043" if dark else "#e0e0e0",foreground=fg);style.configure("Horizontal.TScale",background=bg);s.colors=(field,fg,muted)
+  style.configure(".",background=bg,foreground=fg);style.configure("TFrame",background=bg);style.configure("TLabelframe",background=bg,foreground=fg);style.configure("TLabelframe.Label",background=bg,foreground=fg);style.configure("TLabel",background=bg,foreground=fg)
+  style.configure("TButton",background=raised,foreground=fg,padding=5);style.map("TButton",background=[("active",active),("pressed",field)])
+  style.configure("TEntry",fieldbackground=field,foreground=fg);style.configure("TSpinbox",fieldbackground=field,background=raised,foreground=fg,arrowcolor=fg);style.map("TSpinbox",fieldbackground=[("readonly",field)],foreground=[("readonly",fg)])
+  style.configure("TCombobox",fieldbackground=field,background=raised,foreground=fg,arrowcolor=fg);style.map("TCombobox",fieldbackground=[("readonly",field)],foreground=[("readonly",fg)])
+  style.configure("Treeview",background=field,fieldbackground=field,foreground=fg);style.map("Treeview",background=[("selected",active)],foreground=[("selected",fg)]);style.configure("Treeview.Heading",background=raised,foreground=fg);style.configure("Horizontal.TScale",background=bg);s.colors=(field,fg,muted)
  def set_theme(s,*_):
   s.theme.set("dark" if s.theme_box.get()==s.t("dark") else "light");s.apply_theme();s.chat.config(background=s.colors[0],foreground=s.colors[1],insertbackground=s.colors[1]);s.save_settings()
 
