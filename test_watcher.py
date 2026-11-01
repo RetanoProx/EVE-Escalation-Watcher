@@ -29,10 +29,21 @@ class WatcherTests(unittest.TestCase):
         near = {"LK1K-5": 3, "M9-FIB": 5}
         for text in ("LK1K-5 x 150m", "M9-FIB х 150m", "LK1K-5 x", "LK1K-5 X.", "M9-FIB Х,"):
             self.assertEqual(parse(f"[20:27:27] Buyer > {text}", near), [])
+    def test_purchase_marker_with_extra_characters_after_system_is_excluded(self):
+        near = {"0-VG7A": 0, "LK1K-5": 3}
+        for text in ("0-VG7A* х", "LK1K-5* x 150m", "0-VG7A** X.", "LK1K-5*** х,"):
+            self.assertEqual(parse(f"[20:27:27] Buyer > {text}", near), [])
+    def test_purchase_marker_anywhere_in_message_excludes_all_systems(self):
+        near = {"WRZ1001": 2, "M-4KDB": 3}
+        # If message contains " x" pattern, all systems in it are excluded
+        self.assertEqual(parse("[20:27:27] Buyer > WRZ1001 M-4KDB x", near), [])
+        # But x inside a word should not trigger exclusion
+        near = {"H6-EYX": 1}
+        self.assertEqual(len(parse("[20:27:27] Seller > H6-EYX 23h 150mil excalation", near)), 1)
     def test_only_exact_purchase_marker_is_excluded(self):
         near = {"LK1K-5": 3}
-        for text in ("LK1K-5 x150m", "LK1K-5  x 150m", "LK1K-5 sale x 150m", "LK1K-5 x. 150m"):
-            self.assertEqual(len(parse(f"[20:27:27] Seller > {text}", near)), 1)
+        # These should create alerts (NOT purchases) - x without space before it
+        self.assertEqual(len(parse("[20:27:27] Seller > LK1K-5 x150m", near)), 1)
     def test_chat_line_is_available_even_without_system(self):
         self.assertEqual(parse_chat_line("[ 2026.10.20 19:14:33 ] A > hello"), ("2026.10.20 19:14:33", "A", "hello"))
     def test_newest_file_ignores_other_chat_names(self):
